@@ -5,7 +5,6 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import Script from "next/script"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -20,12 +19,12 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "JobVault | Bring Order to Job Site Expenses",
+  title: "JobVault for General Contractors",
   description:
     "Cut costs by 15% with our expense cards that prevent overspending, eliminate receipt chasing, and maximize tax deductions.",
   metadataBase: new URL("https://jobvault.co"),
   openGraph: {
-    title: "JobVault | Bring Order to Job Site Expenses",
+    title: "JobVault for General Contractors",
     description:
       "Cut costs by 15% with our expense cards that prevent overspending, eliminate receipt chasing, and maximize tax deductions.",
     images: [
@@ -33,7 +32,7 @@ export const metadata: Metadata = {
         url: "/images/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "JobVault - Bring Order to Job Site Expenses",
+        alt: "JobVault for General Contractors",
       },
     ],
     locale: "en_US",
@@ -41,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "JobVault | Bring Order to Job Site Expenses",
+    title: "JobVault for General Contractors",
     description:
       "Cut costs by 15% with our expense cards that prevent overspending, eliminate receipt chasing, and maximize tax deductions.",
     images: ["/images/og-image.jpg"],
@@ -77,73 +76,6 @@ export default function RootLayout({
           {children}
           <Footer />
         </ThemeProvider>
-
-        <Script id="gc-card-webhook" strategy="afterInteractive">
-          {`
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('GC Card webhook script loaded');
-      
-      const form = document.getElementById('contact-form');
-      
-      if (!form) {
-        console.warn('Contact form not found on page');
-        return;
-      }
-      
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Check if already submitted in this session
-        if (sessionStorage.getItem('contactFormSubmitted')) {
-          console.warn('Form already submitted in this session');
-          alert('You have already submitted this form. Please wait before submitting again.');
-          return;
-        }
-        
-        const formData = new FormData(form);
-        const name = formData.get('name');
-        const email = formData.get('email');
-        const message = formData.get('message');
-        
-        // Prepare data for the webhook
-        const data = {
-          name: name,
-          email: email,
-          message: message,
-          url: window.location.href,
-          submittedAt: new Date().toISOString()
-        };
-        
-        console.log('Submitting data to Zapier:', data);
-        
-        // Send POST request to Zapier webhook
-        fetch('https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/', {
-          method: 'POST',
-          body: JSON.stringify(data)
-        })
-        .then(response => {
-          if (response.ok) {
-            console.log('Zapier webhook fired');
-            
-            // Set flag in sessionStorage to prevent duplicate submissions
-            sessionStorage.setItem('contactFormSubmitted', 'true');
-            
-            // Show success message
-            alert('Thank you! Your message has been submitted.');
-            form.reset();
-          } else {
-            console.error('Failed to submit form to Zapier');
-            alert('There was an error submitting your message. Please try again later.');
-          }
-        })
-        .catch(error => {
-          console.error('Error submitting form to Zapier:', error);
-          alert('There was an error submitting your message. Please try again later.');
-        });
-      });
-    });
-  `}
-        </Script>
       </body>
     </html>
   )

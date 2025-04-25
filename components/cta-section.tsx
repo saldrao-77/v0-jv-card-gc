@@ -8,9 +8,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-// Log when the script is loaded
-console.log("✅ GC Card webhook script loaded")
-
 export function CtaSection() {
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -23,37 +20,26 @@ export function CtaSection() {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Check if already submitted in this session
-    if (sessionStorage.getItem("contactFormSubmitted")) {
-      console.warn("⚠️ Form already submitted in this session")
-      alert("You have already submitted this form. Please wait before submitting again.")
-      setIsSubmitting(false)
-      return
-    }
-
-    // Create the submission data
-    const data = {
-      name,
-      email,
-      message: `Company: ${company}, Job Sites: ${properties}`,
-      url: window.location.href,
-      submittedAt: new Date().toISOString(),
-    }
-
-    console.log("📤 Submitting data to Zapier:", data)
-
     try {
-      // Send POST request to Zapier webhook
+      // Create the submission data
+      const data = {
+        name,
+        email,
+        company,
+        properties,
+        message: `Company: ${company}, Job Sites: ${properties}`,
+        url: window.location.href,
+        submittedAt: new Date().toISOString(),
+      }
+
+      // Send POST request directly to Zapier webhook
       const response = await fetch("https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/", {
         method: "POST",
         body: JSON.stringify(data),
       })
 
       if (response.ok) {
-        console.log("✅ Zapier webhook fired")
-
-        // Set flag in sessionStorage to prevent duplicate submissions
-        sessionStorage.setItem("contactFormSubmitted", "true")
+        console.log("Form submitted successfully")
 
         // Save to localStorage for admin panel (keeping this functionality)
         const newSubmission = {
@@ -64,7 +50,7 @@ export function CtaSection() {
           properties,
           status: "pending",
           date: new Date().toISOString(),
-          source: "homepage",
+          source: "homepage-cta",
           notes: "",
         }
 
@@ -74,12 +60,12 @@ export function CtaSection() {
         // Redirect to the calendar page with the submitted parameter
         router.push("/calendar?submitted=true")
       } else {
-        console.error("❌ Failed to submit form to Zapier:", response.status)
+        console.error("Failed to submit form")
         alert("There was an error submitting your message. Please try again later.")
         setIsSubmitting(false)
       }
     } catch (error) {
-      console.error("❌ Error submitting form to Zapier:", error)
+      console.error("Error submitting form:", error)
       alert("There was an error submitting your message. Please try again later.")
       setIsSubmitting(false)
     }
@@ -109,6 +95,7 @@ export function CtaSection() {
                 </label>
                 <Input
                   id="cta-name"
+                  name="name"
                   placeholder="John Smith"
                   className="bg-zinc-800 border-zinc-700"
                   value={name}
@@ -123,6 +110,7 @@ export function CtaSection() {
                 </label>
                 <Input
                   id="cta-email"
+                  name="email"
                   type="email"
                   placeholder="john@example.com"
                   className="bg-zinc-800 border-zinc-700"
@@ -138,6 +126,7 @@ export function CtaSection() {
                 </label>
                 <Input
                   id="cta-company"
+                  name="company"
                   placeholder="Your GC Company"
                   className="bg-zinc-800 border-zinc-700"
                   value={company}
@@ -152,6 +141,7 @@ export function CtaSection() {
                 </label>
                 <select
                   id="cta-properties"
+                  name="properties"
                   className="w-full rounded-md bg-zinc-800 border-zinc-700 p-2"
                   value={properties}
                   onChange={(e) => setProperties(e.target.value)}

@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Image from "next/image"
 
 export const metadata: Metadata = {
-  title: "JobVault | About Us",
+  title: "JobVault for General Contractors | About Us",
   description: "Learn about JobVault and our mission to bring order to job site expenses.",
 }
 

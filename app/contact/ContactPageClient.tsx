@@ -5,10 +5,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { useRouter } from "next/navigation"
-
-// Log when the script is loaded
-console.log("✅ GC Card webhook script loaded")
 
 export default function ContactPageClient() {
   const [name, setName] = useState("")
@@ -16,54 +12,38 @@ export default function ContactPageClient() {
   const [message, setMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Check if already submitted in this session
-    if (sessionStorage.getItem("contactFormSubmitted")) {
-      console.warn("⚠️ Form already submitted in this session")
-      alert("You have already submitted this form. Please wait before submitting again.")
-      setIsSubmitting(false)
-      return
-    }
-
-    // Create the submission data
-    const data = {
-      name,
-      email,
-      message,
-      url: window.location.href,
-      submittedAt: new Date().toISOString(),
-    }
-
-    console.log("📤 Submitting data to Zapier:", data)
-
     try {
-      // Send POST request to Zapier webhook
+      // Create the submission data
+      const data = {
+        name,
+        email,
+        message,
+        url: window.location.href,
+        submittedAt: new Date().toISOString(),
+      }
+
+      // Send POST request directly to Zapier webhook
       const response = await fetch("https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/", {
         method: "POST",
         body: JSON.stringify(data),
       })
 
       if (response.ok) {
-        console.log("✅ Zapier webhook fired")
-
-        // Set flag in sessionStorage to prevent duplicate submissions
-        sessionStorage.setItem("contactFormSubmitted", "true")
-
-        // Show success message
+        console.log("Form submitted successfully")
         setSubmitSuccess(true)
         setIsSubmitting(false)
       } else {
-        console.error("❌ Failed to submit form to Zapier:", response.status)
+        console.error("Failed to submit form")
         alert("There was an error submitting your message. Please try again later.")
         setIsSubmitting(false)
       }
     } catch (error) {
-      console.error("❌ Error submitting form to Zapier:", error)
+      console.error("Error submitting form:", error)
       alert("There was an error submitting your message. Please try again later.")
       setIsSubmitting(false)
     }
@@ -107,8 +87,6 @@ export default function ContactPageClient() {
                   setName("")
                   setEmail("")
                   setMessage("")
-                  // Allow submitting again
-                  sessionStorage.removeItem("contactFormSubmitted")
                 }}
               >
                 Send Another Message
