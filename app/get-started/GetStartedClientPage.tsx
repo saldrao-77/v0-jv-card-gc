@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { getUtmParams } from "@/lib/utm-utils"
 
 export default function GetStartedClientPage() {
   const searchParams = useSearchParams()
@@ -15,12 +16,20 @@ export default function GetStartedClientPage() {
   const [company, setCompany] = useState("")
   const [properties, setProperties] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isFromHero, setIsFromHero] = useState(false)
   const router = useRouter()
+  const utmParams = getUtmParams()
 
   useEffect(() => {
     const emailParam = searchParams.get("email")
+    const fromParam = searchParams.get("from")
+
     if (emailParam) {
       setEmail(emailParam)
+    }
+
+    if (fromParam === "hero") {
+      setIsFromHero(true)
     }
   }, [searchParams])
 
@@ -29,52 +38,91 @@ export default function GetStartedClientPage() {
     setIsSubmitting(true)
 
     try {
+      // Get client IP address
+      const ipResponse = await fetch("https://api.ipify.org?format=json")
+      const ipData = await ipResponse.json()
+
+      // Detect if user is on mobile
+      const isMobile = /mobile|android|iphone|ipad|ipod/i.test(window.navigator.userAgent.toLowerCase())
+
+      // Get hero submission data if available
+      let heroData = null
+      try {
+        const heroSubmissionStr = sessionStorage.getItem("heroSubmission")
+        if (heroSubmissionStr) {
+          heroData = JSON.parse(heroSubmissionStr)
+        }
+      } catch (e) {
+        console.error("Error parsing hero submission:", e)
+      }
+
       // Create the submission data
-      const data = {
+      const formData = {
         name,
         email,
         company,
         properties,
-        message: `Company: ${company}, Job Sites: ${properties}`,
-        url: window.location.href,
+        source: "get-started",
         submittedAt: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: window.navigator.userAgent,
+        ip: ipData.ip,
+        utmSource: utmParams.utmSource,
+        utmMedium: utmParams.utmMedium,
+        utmCampaign: utmParams.utmCampaign,
+        deviceType: isMobile ? "mobile" : "desktop",
+        isFromHero: isFromHero || !!heroData,
+        heroSubmissionTime: heroData?.timestamp ? new Date(heroData.timestamp).toISOString() : null,
       }
 
-      // Send POST request directly to Zapier webhook
-      const response = await fetch("https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/", {
+      // Send to our API route
+      const response = await fetch("/api/webhook", {
         method: "POST",
-        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
       })
 
-      if (response.ok) {
-        console.log("Form submitted successfully")
-
-        // Save to localStorage for admin panel (keeping this functionality)
-        const newSubmission = {
-          id: Date.now().toString(),
-          name,
-          email,
-          company,
-          properties,
-          status: "pending",
-          date: new Date().toISOString(),
-          source: "get-started",
-          notes: "",
-        }
-
-        const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
-        localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
-
-        // Redirect to the calendar page with the submitted parameter
-        router.push("/calendar?submitted=true")
-      } else {
-        console.error("Failed to submit form")
-        alert("There was an error submitting your message. Please try again later.")
-        setIsSubmitting(false)
+      if (!response.ok) {
+        throw new Error("Failed to submit form")
       }
+
+      // Store submission in sessionStorage to check on calendar page
+      sessionStorage.setItem(
+        "lastSubmission",
+        JSON.stringify({
+          ...formData,
+          timestamp: Date.now(),
+        }),
+      )
+
+      // Clear hero submission data after successful get-started submission
+      sessionStorage.removeItem("heroSubmission")
+
+      // Save to localStorage for admin panel (keeping this functionality)
+      const newSubmission = {
+        id: Date.now().toString(),
+        name,
+        email,
+        company,
+        properties,
+        status: "pending",
+        date: new Date().toISOString(),
+        source: "get-started",
+        notes: "",
+      }
+
+      const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
+      localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
+
+      // Redirect to the calendar page with the submitted parameter
+      router.push("/calendar?submitted=true")
     } catch (error) {
-      console.error("Error submitting form:", error)
-      alert("There was an error submitting your message. Please try again later.")
+      console.error("Error processing submission:", error)
+      // Still redirect even if notification fails
+      router.push("/calendar?submitted=true")
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -103,6 +151,7 @@ export default function GetStartedClientPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
 
@@ -119,6 +168,7 @@ export default function GetStartedClientPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
 
@@ -134,6 +184,7 @@ export default function GetStartedClientPage() {
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
 
@@ -148,6 +199,7 @@ export default function GetStartedClientPage() {
                 value={properties}
                 onChange={(e) => setProperties(e.target.value)}
                 required
+                disabled={isSubmitting}
               >
                 <option value="">Select an option</option>
                 <option value="1-5">1-5 job sites</option>

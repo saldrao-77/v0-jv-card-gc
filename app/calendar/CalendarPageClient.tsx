@@ -4,18 +4,71 @@ import type React from "react"
 import { useEffect, useState, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { X } from "lucide-react"
+import { getUtmParams } from "@/lib/utm-utils"
 
 export default function CalendarPageClient() {
   const searchParams = useSearchParams()
   const [showThankYou, setShowThankYou] = useState(false)
   const [isCalendlyLoading, setIsCalendlyLoading] = useState(true)
+  const [zapierTriggered, setZapierTriggered] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const utmParams = getUtmParams()
 
   useEffect(() => {
     // Check if the URL has the submitted parameter
     const isSubmitted = searchParams.get("submitted") === "true"
     setShowThankYou(isSubmitted)
-  }, [searchParams])
+
+    // Trigger API webhook for calendar page visits with submitted=true
+    if (isSubmitted && !zapierTriggered) {
+      const triggerWebhook = async () => {
+        try {
+          // Check if we have a recent submission in sessionStorage
+          const lastSubmission = sessionStorage.getItem("lastSubmission")
+          let submissionData = {}
+
+          if (lastSubmission) {
+            try {
+              const parsedSubmission = JSON.parse(lastSubmission)
+              // Only use if it's recent (within last 5 minutes)
+              if (Date.now() - parsedSubmission.timestamp < 5 * 60 * 1000) {
+                submissionData = parsedSubmission
+              }
+            } catch (e) {
+              console.error("Error parsing last submission:", e)
+            }
+          }
+
+          // Prepare data for the webhook
+          const data = {
+            event: "calendar_visit",
+            submittedAt: new Date().toISOString(),
+            url: window.location.href,
+            userAgent: window.navigator.userAgent,
+            ...submissionData,
+            utmSource: utmParams.utmSource,
+            utmMedium: utmParams.utmMedium,
+            utmCampaign: utmParams.utmCampaign,
+          }
+
+          // Send to our API route
+          await fetch("/api/webhook", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          })
+
+          setZapierTriggered(true)
+        } catch (error) {
+          console.error("Error triggering webhook:", error)
+        }
+      }
+
+      triggerWebhook()
+    }
+  }, [searchParams, zapierTriggered, utmParams])
 
   const handleClosePopup = () => {
     // Simply hide the popup

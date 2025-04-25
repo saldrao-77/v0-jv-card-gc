@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { RefreshCw, Download, Search, ArrowUpDown, Trash2, Save, X, Edit2 } from "lucide-react"
+import { createClientSupabaseClient } from "@/lib/supabase"
 
 // Define the submission type
 type Submission = {
@@ -17,6 +18,12 @@ type Submission = {
   source: string
   notes: string
   isNew?: boolean
+  form_source?: string
+  url?: string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  device_type?: string
 }
 
 export default function AdminPage() {
@@ -34,141 +41,197 @@ export default function AdminPage() {
   const [newSubmissionsCount, setNewSubmissionsCount] = useState(0)
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
   const lastSubmissionCountRef = useRef(0)
+  const supabase = createClientSupabaseClient()
 
-  // Load submissions from localStorage
-  useEffect(() => {
+  // Load submissions from Supabase
+  const fetchSubmissions = async () => {
     setIsLoading(true)
 
-    // In a real app, this would be an API call
-    // For demo purposes, we'll use localStorage and mock data
-    setTimeout(() => {
-      const storedSubmissions = localStorage.getItem("formSubmissions")
+    try {
+      // Try to fetch from Supabase first
+      const { data: supabaseData, error } = await supabase
+        .from("jv_gcc")
+        .select("*")
+        .order("submitted_at", { ascending: false })
 
+      if (error) {
+        console.error("Error fetching from Supabase:", error)
+        throw error
+      }
+
+      if (supabaseData && supabaseData.length > 0) {
+        // Transform Supabase data to match our Submission type
+        const transformedData: Submission[] = supabaseData.map((item) => ({
+          id: item.id.toString(),
+          name: item.name || "",
+          email: item.email || "",
+          company: item.company || "",
+          properties: item.properties || "",
+          status: item.status || "pending",
+          date: item.submitted_at || new Date().toISOString(),
+          source: item.form_source || "",
+          notes: item.notes || "",
+          form_source: item.form_source,
+          url: item.url,
+          utm_source: item.utm_source,
+          utm_medium: item.utm_medium,
+          utm_campaign: item.utm_campaign,
+          device_type: item.device_type,
+        }))
+
+        setSubmissions(transformedData)
+        setFilteredSubmissions(transformedData)
+
+        // Check for new submissions
+        if (lastSubmissionCountRef.current > 0 && transformedData.length > lastSubmissionCountRef.current) {
+          setNewSubmissionsCount(transformedData.length - lastSubmissionCountRef.current)
+
+          // Mark new submissions
+          const updatedSubmissions = transformedData.map((sub: Submission, index: number) => {
+            if (index < transformedData.length - lastSubmissionCountRef.current) {
+              return { ...sub, isNew: true }
+            }
+            return sub
+          })
+
+          setSubmissions(updatedSubmissions)
+          setFilteredSubmissions(updatedSubmissions)
+        }
+
+        lastSubmissionCountRef.current = transformedData.length
+      } else {
+        // Fallback to localStorage if no Supabase data
+        const storedSubmissions = localStorage.getItem("formSubmissions")
+
+        if (storedSubmissions) {
+          const parsedSubmissions = JSON.parse(storedSubmissions)
+          setSubmissions(parsedSubmissions)
+          setFilteredSubmissions(parsedSubmissions)
+          lastSubmissionCountRef.current = parsedSubmissions.length
+        } else {
+          // Mock data if no submissions exist
+          const mockSubmissions: Submission[] = [
+            {
+              id: "1",
+              name: "John Smith",
+              email: "john@example.com",
+              company: "ABC Property Management",
+              properties: "11-50",
+              status: "processed",
+              date: "2023-04-15T10:30:00",
+              source: "get-started",
+              notes: "Interested in Pro plan. Follow up next week.",
+            },
+            {
+              id: "2",
+              name: "Sarah Johnson",
+              email: "sarah@realestate.com",
+              company: "Johnson Properties",
+              properties: "1-10",
+              status: "pending",
+              date: "2023-04-16T14:45:00",
+              source: "homepage",
+              notes: "",
+            },
+            {
+              id: "3",
+              name: "Michael Brown",
+              email: "michael@brownpm.com",
+              company: "Brown Property Management",
+              properties: "51-200",
+              status: "pending",
+              date: "2023-04-14T09:15:00",
+              source: "pricing",
+              notes: "Requested pricing information for Enterprise plan.",
+            },
+            {
+              id: "4",
+              name: "Jessica Davis",
+              email: "jessica@davisproperties.com",
+              company: "Davis Properties LLC",
+              properties: "11-50",
+              status: "processed",
+              date: "2023-04-13T16:20:00",
+              source: "get-started",
+              notes: "Demo scheduled for next Tuesday at 2pm.",
+            },
+            {
+              id: "5",
+              name: "Robert Wilson",
+              email: "robert@wilsonpm.com",
+              company: "Wilson PM Group",
+              properties: "200+",
+              status: "pending",
+              date: "2023-04-17T11:10:00",
+              source: "homepage",
+              notes: "",
+            },
+          ]
+
+          setSubmissions(mockSubmissions)
+          setFilteredSubmissions(mockSubmissions)
+          localStorage.setItem("formSubmissions", JSON.stringify(mockSubmissions))
+          lastSubmissionCountRef.current = mockSubmissions.length
+        }
+      }
+    } catch (error) {
+      console.error("Error loading submissions:", error)
+
+      // Fallback to localStorage
+      const storedSubmissions = localStorage.getItem("formSubmissions")
       if (storedSubmissions) {
         const parsedSubmissions = JSON.parse(storedSubmissions)
         setSubmissions(parsedSubmissions)
         setFilteredSubmissions(parsedSubmissions)
-
-        // Check for new submissions
-        if (lastSubmissionCountRef.current > 0 && parsedSubmissions.length > lastSubmissionCountRef.current) {
-          setNewSubmissionsCount(parsedSubmissions.length - lastSubmissionCountRef.current)
-
-          // Mark new submissions
-          const updatedSubmissions = parsedSubmissions.map((sub: Submission, index: number) => {
-            if (index >= lastSubmissionCountRef.current) {
-              return { ...sub, isNew: true }
-            }
-            return sub
-          })
-
-          setSubmissions(updatedSubmissions)
-          setFilteredSubmissions(updatedSubmissions)
-        }
-
-        lastSubmissionCountRef.current = parsedSubmissions.length
-      } else {
-        // Mock data if no submissions exist
-        const mockSubmissions: Submission[] = [
-          {
-            id: "1",
-            name: "John Smith",
-            email: "john@example.com",
-            company: "ABC Property Management",
-            properties: "11-50",
-            status: "processed",
-            date: "2023-04-15T10:30:00",
-            source: "get-started",
-            notes: "Interested in Pro plan. Follow up next week.",
-          },
-          {
-            id: "2",
-            name: "Sarah Johnson",
-            email: "sarah@realestate.com",
-            company: "Johnson Properties",
-            properties: "1-10",
-            status: "pending",
-            date: "2023-04-16T14:45:00",
-            source: "homepage",
-            notes: "",
-          },
-          {
-            id: "3",
-            name: "Michael Brown",
-            email: "michael@brownpm.com",
-            company: "Brown Property Management",
-            properties: "51-200",
-            status: "pending",
-            date: "2023-04-14T09:15:00",
-            source: "pricing",
-            notes: "Requested pricing information for Enterprise plan.",
-          },
-          {
-            id: "4",
-            name: "Jessica Davis",
-            email: "jessica@davisproperties.com",
-            company: "Davis Properties LLC",
-            properties: "11-50",
-            status: "processed",
-            date: "2023-04-13T16:20:00",
-            source: "get-started",
-            notes: "Demo scheduled for next Tuesday at 2pm.",
-          },
-          {
-            id: "5",
-            name: "Robert Wilson",
-            email: "robert@wilsonpm.com",
-            company: "Wilson PM Group",
-            properties: "200+",
-            status: "pending",
-            date: "2023-04-17T11:10:00",
-            source: "homepage",
-            notes: "",
-          },
-        ]
-
-        setSubmissions(mockSubmissions)
-        setFilteredSubmissions(mockSubmissions)
-        localStorage.setItem("formSubmissions", JSON.stringify(mockSubmissions))
-        lastSubmissionCountRef.current = mockSubmissions.length
       }
-
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
+  }
+
+  // Load submissions on mount
+  useEffect(() => {
+    fetchSubmissions()
   }, [])
 
   // Set up polling for new submissions
   useEffect(() => {
-    const checkForNewSubmissions = () => {
-      const storedSubmissions = localStorage.getItem("formSubmissions")
-      if (storedSubmissions) {
-        const parsedSubmissions = JSON.parse(storedSubmissions)
-        if (parsedSubmissions.length > lastSubmissionCountRef.current) {
-          setNewSubmissionsCount(parsedSubmissions.length - lastSubmissionCountRef.current)
+    const checkForNewSubmissions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("jv_gcc")
+          .select("id")
+          .order("submitted_at", { ascending: false })
+          .limit(1)
 
-          // Play notification sound
-          const audio = new Audio("/notification.mp3")
-          audio.play().catch((e) => console.log("Audio play failed:", e))
-
-          // Show browser notification if supported
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("New Form Submission", {
-              body: "You have received a new form submission on JobVault.",
-              icon: "/favicon.ico",
-            })
-          }
-
-          // Mark new submissions
-          const updatedSubmissions = parsedSubmissions.map((sub: Submission, index: number) => {
-            if (index >= lastSubmissionCountRef.current) {
-              return { ...sub, isNew: true }
-            }
-            return sub
-          })
-
-          setSubmissions(updatedSubmissions)
-          setFilteredSubmissions(updatedSubmissions)
-          lastSubmissionCountRef.current = parsedSubmissions.length
+        if (error) {
+          console.error("Error checking for new submissions:", error)
+          return
         }
+
+        if (data && data.length > 0) {
+          const latestId = data[0].id
+          const latestSubmission = submissions.find((sub) => sub.id === latestId.toString())
+
+          if (!latestSubmission) {
+            // New submission found
+            setNewSubmissionsCount((prev) => prev + 1)
+
+            // Play notification sound
+            const audio = new Audio("/notification.mp3")
+            audio.play().catch((e) => console.log("Audio play failed:", e))
+
+            // Show browser notification if supported
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("New Form Submission", {
+                body: "You have received a new form submission on JobVault.",
+                icon: "/favicon.ico",
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error checking for new submissions:", error)
       }
     }
 
@@ -181,7 +244,7 @@ export default function AdminPage() {
     }
 
     return () => clearInterval(interval)
-  }, [])
+  }, [submissions])
 
   // Filter submissions based on search, status, source, and date range
   useEffect(() => {
@@ -240,32 +303,28 @@ export default function AdminPage() {
 
   // Handle refresh
   const handleRefresh = () => {
-    setIsLoading(true)
-    setTimeout(() => {
-      const storedSubmissions = localStorage.getItem("formSubmissions")
-      if (storedSubmissions) {
-        const parsedSubmissions = JSON.parse(storedSubmissions)
-        setSubmissions(parsedSubmissions)
-        setFilteredSubmissions(parsedSubmissions)
-        setNewSubmissionsCount(0)
-
-        // Clear "new" flags
-        const updatedSubmissions = parsedSubmissions.map((sub: Submission) => ({
-          ...sub,
-          isNew: false,
-        }))
-
-        setSubmissions(updatedSubmissions)
-        setFilteredSubmissions(updatedSubmissions)
-        localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
-      }
-      setIsLoading(false)
-    }, 1000)
+    setNewSubmissionsCount(0)
+    fetchSubmissions()
   }
 
   // Handle export to CSV
   const handleExportCSV = () => {
-    const headers = ["ID", "Name", "Email", "Company", "Properties", "Status", "Date", "Source", "Notes"]
+    const headers = [
+      "ID",
+      "Name",
+      "Email",
+      "Company",
+      "Properties",
+      "Status",
+      "Date",
+      "Source",
+      "Notes",
+      "URL",
+      "UTM Source",
+      "UTM Medium",
+      "UTM Campaign",
+      "Device Type",
+    ]
     const csvData = filteredSubmissions.map((sub) => [
       sub.id,
       sub.name,
@@ -276,6 +335,11 @@ export default function AdminPage() {
       new Date(sub.date).toLocaleString(),
       sub.source,
       sub.notes,
+      sub.url || "",
+      sub.utm_source || "",
+      sub.utm_medium || "",
+      sub.utm_campaign || "",
+      sub.device_type || "",
     ])
 
     const csvContent = [headers.join(","), ...csvData.map((row) => row.join(","))].join("\n")
@@ -297,18 +361,58 @@ export default function AdminPage() {
   }
 
   // Handle status change
-  const handleStatusChange = (id: string, newStatus: "pending" | "processed") => {
-    const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, status: newStatus } : sub))
-    setSubmissions(updatedSubmissions)
-    localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+  const handleStatusChange = async (id: string, newStatus: "pending" | "processed") => {
+    try {
+      // Update in Supabase
+      const { error } = await supabase.from("jv_gcc").update({ status: newStatus }).eq("id", id)
+
+      if (error) {
+        console.error("Error updating status in Supabase:", error)
+        throw error
+      }
+
+      // Update local state
+      const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, status: newStatus } : sub))
+      setSubmissions(updatedSubmissions)
+
+      // Also update localStorage for backup
+      localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+    } catch (error) {
+      console.error("Error updating status:", error)
+
+      // Fallback to just updating localStorage
+      const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, status: newStatus } : sub))
+      setSubmissions(updatedSubmissions)
+      localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+    }
   }
 
   // Handle delete submission
-  const handleDeleteSubmission = (id: string) => {
+  const handleDeleteSubmission = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this submission?")) {
-      const updatedSubmissions = submissions.filter((sub) => sub.id !== id)
-      setSubmissions(updatedSubmissions)
-      localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+      try {
+        // Delete from Supabase
+        const { error } = await supabase.from("jv_gcc").delete().eq("id", id)
+
+        if (error) {
+          console.error("Error deleting from Supabase:", error)
+          throw error
+        }
+
+        // Update local state
+        const updatedSubmissions = submissions.filter((sub) => sub.id !== id)
+        setSubmissions(updatedSubmissions)
+
+        // Also update localStorage for backup
+        localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+      } catch (error) {
+        console.error("Error deleting submission:", error)
+
+        // Fallback to just updating localStorage
+        const updatedSubmissions = submissions.filter((sub) => sub.id !== id)
+        setSubmissions(updatedSubmissions)
+        localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+      }
     }
   }
 
@@ -319,11 +423,33 @@ export default function AdminPage() {
   }
 
   // Save notes
-  const saveNotes = (id: string) => {
-    const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, notes: notesText } : sub))
-    setSubmissions(updatedSubmissions)
-    localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
-    setEditingNotes(null)
+  const saveNotes = async (id: string) => {
+    try {
+      // Update in Supabase
+      const { error } = await supabase.from("jv_gcc").update({ notes: notesText }).eq("id", id)
+
+      if (error) {
+        console.error("Error updating notes in Supabase:", error)
+        throw error
+      }
+
+      // Update local state
+      const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, notes: notesText } : sub))
+      setSubmissions(updatedSubmissions)
+
+      // Also update localStorage for backup
+      localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+
+      setEditingNotes(null)
+    } catch (error) {
+      console.error("Error saving notes:", error)
+
+      // Fallback to just updating localStorage
+      const updatedSubmissions = submissions.map((sub) => (sub.id === id ? { ...sub, notes: notesText } : sub))
+      setSubmissions(updatedSubmissions)
+      localStorage.setItem("formSubmissions", JSON.stringify(updatedSubmissions))
+      setEditingNotes(null)
+    }
   }
 
   // Cancel editing notes
@@ -403,9 +529,9 @@ export default function AdminPage() {
                 onChange={(e) => setSourceFilter(e.target.value)}
               >
                 <option value="all">All Sources</option>
-                <option value="homepage">Homepage</option>
+                <option value="hero">Hero</option>
+                <option value="homepage-cta">Homepage CTA</option>
                 <option value="get-started">Get Started</option>
-                <option value="pricing">Pricing</option>
               </select>
             </div>
 

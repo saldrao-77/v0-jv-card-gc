@@ -7,6 +7,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { getUtmParams } from "@/lib/utm-utils"
 
 export function CtaSection() {
   const [email, setEmail] = useState("")
@@ -15,58 +16,82 @@ export function CtaSection() {
   const [properties, setProperties] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+  const utmParams = getUtmParams()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
     try {
+      // Get client IP address
+      const ipResponse = await fetch("https://api.ipify.org?format=json")
+      const ipData = await ipResponse.json()
+
+      // Detect if user is on mobile
+      const isMobile = /mobile|android|iphone|ipad|ipod/i.test(window.navigator.userAgent.toLowerCase())
+
       // Create the submission data
-      const data = {
+      const formData = {
         name,
         email,
         company,
         properties,
-        message: `Company: ${company}, Job Sites: ${properties}`,
-        url: window.location.href,
+        source: "homepage-cta",
         submittedAt: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: window.navigator.userAgent,
+        ip: ipData.ip,
+        utmSource: utmParams.utmSource,
+        utmMedium: utmParams.utmMedium,
+        utmCampaign: utmParams.utmCampaign,
+        deviceType: isMobile ? "mobile" : "desktop",
       }
 
-      // Send POST request directly to Zapier webhook
-      const response = await fetch("https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/", {
+      // Send to our API route
+      const response = await fetch("/api/webhook", {
         method: "POST",
-        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
       })
 
-      if (response.ok) {
-        console.log("Form submitted successfully")
-
-        // Save to localStorage for admin panel (keeping this functionality)
-        const newSubmission = {
-          id: Date.now().toString(),
-          name,
-          email,
-          company,
-          properties,
-          status: "pending",
-          date: new Date().toISOString(),
-          source: "homepage-cta",
-          notes: "",
-        }
-
-        const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
-        localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
-
-        // Redirect to the calendar page with the submitted parameter
-        router.push("/calendar?submitted=true")
-      } else {
-        console.error("Failed to submit form")
-        alert("There was an error submitting your message. Please try again later.")
-        setIsSubmitting(false)
+      if (!response.ok) {
+        throw new Error("Failed to submit form")
       }
+
+      // Store submission in sessionStorage to check on calendar page
+      sessionStorage.setItem(
+        "lastSubmission",
+        JSON.stringify({
+          ...formData,
+          timestamp: Date.now(),
+        }),
+      )
+
+      // Save to localStorage for admin panel (keeping this functionality)
+      const newSubmission = {
+        id: Date.now().toString(),
+        name,
+        email,
+        company,
+        properties,
+        status: "pending",
+        date: new Date().toISOString(),
+        source: "homepage-cta",
+        notes: "",
+      }
+
+      const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
+      localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
+
+      // Redirect to the calendar page with the submitted parameter
+      router.push("/calendar?submitted=true")
     } catch (error) {
       console.error("Error submitting form:", error)
       alert("There was an error submitting your message. Please try again later.")
+      setIsSubmitting(false)
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -101,6 +126,7 @@ export function CtaSection() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -117,6 +143,7 @@ export function CtaSection() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -132,6 +159,7 @@ export function CtaSection() {
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -146,6 +174,7 @@ export function CtaSection() {
                   value={properties}
                   onChange={(e) => setProperties(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 >
                   <option value="">Select an option</option>
                   <option value="1-5">1-5 job sites</option>
