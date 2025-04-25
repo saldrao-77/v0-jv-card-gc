@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-// Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || ""
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { createServerSupabaseClient } from "@/lib/supabase"
 
 export async function POST(request: Request) {
   try {
@@ -43,6 +38,9 @@ export async function POST(request: Request) {
       // Additional tracking for hero > get-started flow
       isFromHero: data.source === "get-started" && data.url && data.url.includes("email=") ? "yes" : "no",
     }
+
+    // Initialize Supabase client
+    const supabase = createServerSupabaseClient()
 
     // Always send to Zapier regardless of duplicate status
     const zapierResponse = await fetch("https://hooks.zapier.com/hooks/catch/22588169/2xfpqdv/", {
@@ -117,6 +115,7 @@ export async function POST(request: Request) {
         utm_source: data.utmSource || null,
         utm_medium: data.utmMedium || null,
         utm_campaign: data.utmCampaign || null,
+        device_type: deviceType,
         status: "pending",
         submitted_at: new Date().toISOString(),
       })

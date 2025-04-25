@@ -100,22 +100,6 @@ export default function GetStartedClientPage() {
       // Clear hero submission data after successful get-started submission
       sessionStorage.removeItem("heroSubmission")
 
-      // Save to localStorage for admin panel (keeping this functionality)
-      const newSubmission = {
-        id: Date.now().toString(),
-        name,
-        email,
-        company,
-        properties,
-        status: "pending",
-        date: new Date().toISOString(),
-        source: "get-started",
-        notes: "",
-      }
-
-      const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
-      localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
-
       // Redirect to the calendar page with the submitted parameter
       router.push("/calendar?submitted=true")
     } catch (error) {

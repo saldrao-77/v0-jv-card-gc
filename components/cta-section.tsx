@@ -69,28 +69,12 @@ export function CtaSection() {
         }),
       )
 
-      // Save to localStorage for admin panel (keeping this functionality)
-      const newSubmission = {
-        id: Date.now().toString(),
-        name,
-        email,
-        company,
-        properties,
-        status: "pending",
-        date: new Date().toISOString(),
-        source: "homepage-cta",
-        notes: "",
-      }
-
-      const existingSubmissions = JSON.parse(localStorage.getItem("formSubmissions") || "[]")
-      localStorage.setItem("formSubmissions", JSON.stringify([...existingSubmissions, newSubmission]))
-
       // Redirect to the calendar page with the submitted parameter
       router.push("/calendar?submitted=true")
     } catch (error) {
       console.error("Error submitting form:", error)
-      alert("There was an error submitting your message. Please try again later.")
-      setIsSubmitting(false)
+      // Still redirect even if notification fails
+      router.push("/calendar?submitted=true")
     } finally {
       setIsSubmitting(false)
     }
